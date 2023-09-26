@@ -24,18 +24,25 @@ pub struct IterMut<'a, T> {
 
 impl<T> List<T> {
     pub fn new() -> Self {
-        List { head: ptr::null_mut(), tail: ptr::null_mut() }
+        List {
+            head: ptr::null_mut(),
+            tail: ptr::null_mut(),
+        }
     }
 
     pub fn iter(&self) -> Iter<T> {
         unsafe {
-            Iter { next: self.head.as_ref() }
+            Iter {
+                next: self.head.as_ref(),
+            }
         }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<T> {
         unsafe {
-            IterMut { next: self.head.as_mut() }
+            IterMut {
+                next: self.head.as_mut(),
+            }
         }
     }
 
@@ -74,15 +81,11 @@ impl<T> List<T> {
     }
 
     pub fn peek(&self) -> Option<&T> {
-        unsafe {
-            self.head.as_ref().map(|node| &node.elem)
-        }
+        unsafe { self.head.as_ref().map(|node| &node.elem) }
     }
 
     pub fn peek_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.head.as_mut().map(|node| &mut node.elem)
-        }
+        unsafe { self.head.as_mut().map(|node| &mut node.elem) }
     }
 }
 
@@ -94,7 +97,7 @@ impl<T> Default for List<T> {
 
 impl<T> Drop for List<T> {
     fn drop(&mut self) {
-        while self.pop().is_some() { }
+        while self.pop().is_some() {}
     }
 }
 

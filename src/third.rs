@@ -21,22 +21,28 @@ impl<T> List<T> {
     }
 
     pub fn prepend(&self, elem: T) -> Self {
-        List { head: Some(Rc::new(Node {
-            elem,
-            next: self.head.clone(),
-        }))}
+        List {
+            head: Some(Rc::new(Node {
+                elem,
+                next: self.head.clone(),
+            })),
+        }
     }
 
     pub fn tail(&self) -> Self {
-        List { head: self.head.as_ref().and_then( | node| node.next.clone() ) }
+        List {
+            head: self.head.as_ref().and_then(|node| node.next.clone()),
+        }
     }
 
     pub fn head(&self) -> Option<&T> {
-        self.head.as_ref().map(|node| &node.elem )
+        self.head.as_ref().map(|node| &node.elem)
     }
 
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter { next: self.head.as_deref(), }
+        Iter {
+            next: self.head.as_deref(),
+        }
     }
 }
 
@@ -105,5 +111,4 @@ mod test {
         assert_eq!(iter.next(), Some(&2));
         assert_eq!(iter.next(), Some(&1));
     }
-
 }

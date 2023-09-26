@@ -6,7 +6,7 @@ pub struct List {
 
 enum Link {
     Empty,
-    More(Box<Node>)
+    More(Box<Node>),
 }
 
 struct Node {
@@ -29,7 +29,7 @@ impl List {
     }
 
     pub fn pop(&mut self) -> Option<i32> {
-        match mem::replace(&mut self.head,Link::Empty) {
+        match mem::replace(&mut self.head, Link::Empty) {
             Link::Empty => None,
             Link::More(node) => {
                 self.head = node.next;

@@ -47,13 +47,17 @@ impl<T> List<T> {
     pub fn peek_mut(&mut self) -> Option<&mut T> {
         self.head.as_mut().map(|node| &mut node.elem)
     }
-    
+
     pub fn iter(&self) -> Iter<T> {
-        Iter { next: self.head.as_deref(), }
+        Iter {
+            next: self.head.as_deref(),
+        }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<T> {
-        IterMut { next: self.head.as_deref_mut(), }
+        IterMut {
+            next: self.head.as_deref_mut(),
+        }
     }
 }
 
@@ -161,7 +165,9 @@ mod test {
     #[test]
     fn into_iter() {
         let mut list = List::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.into_iter();
         assert_eq!(iter.next(), Some(3));
@@ -173,7 +179,9 @@ mod test {
     #[test]
     fn iter() {
         let mut list = List::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter();
         assert_eq!(iter.next(), Some(&3));
@@ -184,7 +192,9 @@ mod test {
     #[test]
     fn iter_mut() {
         let mut list = List::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter_mut();
         assert_eq!(iter.next(), Some(&mut 3));
