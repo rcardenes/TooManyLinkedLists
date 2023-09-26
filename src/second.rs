@@ -47,17 +47,19 @@ impl<T> List<T> {
     pub fn peek_mut(&mut self) -> Option<&mut T> {
         self.head.as_mut().map(|node| &mut node.elem)
     }
-
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter(self)
-    }
-
+    
     pub fn iter(&self) -> Iter<T> {
         Iter { next: self.head.as_deref(), }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<T> {
         IterMut { next: self.head.as_deref_mut(), }
+    }
+}
+
+impl<T> Default for List<T> {
+    fn default() -> Self {
+        List::new()
     }
 }
 
@@ -97,6 +99,14 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             self.next = node.next.as_deref_mut();
             &mut node.elem
         })
+    }
+}
+
+impl<T> IntoIterator for List<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter(self)
     }
 }
 

@@ -217,10 +217,6 @@ impl<T> LinkedList<T> {
         }
     }
 
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter { list: self }
-    }
-
     pub fn cursor_mut(&mut self) -> CursorMut<T> {
         CursorMut {
             list: self,
@@ -347,7 +343,7 @@ impl<T> IntoIterator for LinkedList<T> {
     type IntoIter = IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIter { list: self }
     }
 }
 

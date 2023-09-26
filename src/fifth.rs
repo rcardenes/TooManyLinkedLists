@@ -27,10 +27,6 @@ impl<T> List<T> {
         List { head: ptr::null_mut(), tail: ptr::null_mut() }
     }
 
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter(self)
-    }
-
     pub fn iter(&self) -> Iter<T> {
         unsafe {
             Iter { next: self.head.as_ref() }
@@ -90,9 +86,15 @@ impl<T> List<T> {
     }
 }
 
+impl<T> Default for List<T> {
+    fn default() -> Self {
+        List::new()
+    }
+}
+
 impl<T> Drop for List<T> {
     fn drop(&mut self) {
-        while let Some(_) = self.pop() { }
+        while self.pop().is_some() { }
     }
 }
 
@@ -127,6 +129,14 @@ impl<'a, T> Iterator for IterMut<'a, T> {
                 &mut node.elem
             })
         }
+    }
+}
+
+impl<T> IntoIterator for List<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter(self)
     }
 }
 
