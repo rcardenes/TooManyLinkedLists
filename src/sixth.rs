@@ -506,18 +506,16 @@ impl<'a, T> CursorMut<'a, T> {
         }
     }
 
-    pub fn remove_current(&mut self) -> Option<T> {
+    fn remove_current_impl(&mut self) -> Option<NonNull<Node<T>>> {
         if let Some(cur) = self.cur {
             unsafe {
-                let boxed_node = Box::from_raw(cur.as_ptr());
-
                 if self.list.len == 1 {
                     let _ = mem::replace(self.list, LinkedList::new());
                     self.index = None;
                     self.cur = None;
                 } else {
-                    if let Some(next) = boxed_node.back {
-                        if let Some(prev) = boxed_node.front {
+                    if let Some(next) = (*cur.as_ptr()).back.take() {
+                        if let Some(prev) = (*cur.as_ptr()).front.take() {
                             (*prev.as_ptr()).back = Some(next);
                             (*next.as_ptr()).front = Some(prev);
                         } else {
@@ -526,7 +524,7 @@ impl<'a, T> CursorMut<'a, T> {
                         }
                         self.cur = Some(next);
                     } else {
-                        let prev = boxed_node.front.unwrap();
+                        let prev = (*cur.as_ptr()).front.take().unwrap();
                         (*prev.as_ptr()).back = None;
                         self.list.back = Some(prev);
                         self.cur = None;
@@ -534,10 +532,39 @@ impl<'a, T> CursorMut<'a, T> {
                     }
                     self.list.len -= 1;
                 }
-                Some(boxed_node.elem)
+                Some(cur)
             }
         } else {
             None
+        }
+    }
+
+    pub fn remove_current(&mut self) -> Option<T> {
+        unsafe {
+            self.remove_current_impl().map(|node| {
+                let boxed_node = Box::from_raw(node.as_ptr());
+                boxed_node.elem
+            })
+        }
+    }
+
+    /// Removes the current element from the LinkedList without deallocating the list node.
+    ///
+    /// The node that was removed is returned as a new LinkedList containing only this node.
+    /// The cursor is moved to point to the next element in the current LinkedList.
+    ///
+    /// If the cursor is currently pointing to the “ghost” non-element then no element is removed
+    /// and None is returned.
+    pub fn remove_current_as_list(&mut self) -> Option<LinkedList<T>> {
+        unsafe {
+            self.remove_current_impl().map(|node| {
+                LinkedList {
+                    front: Some(node),
+                    back: Some(node),
+                    len: 1,
+                    _boo: PhantomData
+                }
+            })
         }
     }
 
@@ -751,6 +778,66 @@ impl<'a, T> CursorMut<'a, T> {
                 self.list.len += input.len;
                 input.len = 0;
             }
+        }
+    }
+
+    /// Inserts a new element into the LinkedList after the current one.
+    //
+    // If the cursor is pointing at the “ghost” non-element then the new element is inserted
+    // at the front of the LinkedList.
+    pub fn insert_after(&mut self, elem: T) {
+        if let Some(cur) = self.cur {
+            unsafe {
+                let new_elem = NonNull::new_unchecked(Box::into_raw(Box::new(Node {
+                    elem,
+                    front: Some(cur),
+                    back: None,
+                })));
+
+                // If the current was the last element, update list.back. Otherwise,
+                // the new element gets its back set
+                if let Some(next) = (*cur.as_ptr()).back.take() {
+                    (*new_elem.as_ptr()).back = Some(next);
+                    (*next.as_ptr()).front = Some(new_elem);
+                } else {
+                    self.list.back = Some(new_elem);
+                }
+
+                self.list.len += 1;
+                (*cur.as_ptr()).back = Some(new_elem)
+            }
+        } else {
+            // We're at the ghost
+            self.list.push_front(elem);
+        }
+    }
+
+    /// Inserts a new element into the LinkedList before the current one.
+    //
+    // If the cursor is pointing at the “ghost” non-element then the new element is inserted
+    // at the end of the LinkedList.
+    pub fn insert_before(&mut self, elem: T) {
+        if let Some(cur) = self.cur {
+            unsafe {
+                let new_elem = NonNull::new_unchecked(Box::into_raw(Box::new(Node {
+                    elem,
+                    front: None,
+                    back: Some(cur),
+                })));
+
+                if let Some(prev) = (*cur.as_ptr()).front.take() {
+                    (*new_elem.as_ptr()).front = Some(prev);
+                    (*prev.as_ptr()).back = Some(new_elem);
+                } else {
+                    self.list.front = Some(new_elem);
+                }
+
+                self.list.len += 1;
+                (*cur.as_ptr()).front = Some(new_elem);
+            }
+        } else {
+            // We're at the ghost
+            self.list.push_back(elem);
         }
     }
 }
@@ -1188,6 +1275,142 @@ mod test {
             m.iter().cloned().collect::<Vec<_>>(),
             &[200, 201, 202, 203, 1, 100, 101]
         );
+    }
+
+    #[test]
+    fn test_insert_after() {
+        let mut m: LinkedList<u32> = LinkedList::new();
+        m.extend([1, 2, 3, 4, 5, 6]);
+
+        // Insert at the ghost
+        let mut cursor = m.cursor_mut();
+        cursor.insert_after(100);
+        assert_eq!(cursor.current(), None);
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[100, 1, 2, 3, 4, 5, 6]
+        );
+
+
+        // Insert in the middle
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.insert_after(101);
+        assert_eq!(cursor.current(), Some(&mut 100));
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[100, 101, 1, 2, 3, 4, 5, 6]
+        );
+
+        // Insert at the end
+        let mut cursor = m.cursor_mut();
+        cursor.move_prev();
+        cursor.insert_after(102);
+        assert_eq!(cursor.current(), Some(&mut 6));
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[100, 101, 1, 2, 3, 4, 5, 6, 102]
+        );
+        check_links(&m);
+    }
+
+    #[test]
+    fn test_insert_before() {
+        let mut m: LinkedList<u32> = LinkedList::new();
+        m.extend([1, 2, 3, 4, 5, 6]);
+
+        // Insert at the ghost
+        let mut cursor = m.cursor_mut();
+        cursor.insert_before(100);
+        assert_eq!(cursor.current(), None);
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[1, 2, 3, 4, 5, 6, 100]
+        );
+
+
+        // Insert in the middle
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.insert_before(101);
+        assert_eq!(cursor.current(), Some(&mut 1));
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[101, 1, 2, 3, 4, 5, 6, 100]
+        );
+
+        // Insert at the end
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.insert_before(102);
+        assert_eq!(cursor.current(), Some(&mut 1));
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[101, 102, 1, 2, 3, 4, 5, 6, 100]
+        );
+
+        check_links(&m);
+    }
+
+    #[test]
+    fn test_remove_current_as_list() {
+        let mut m: LinkedList<u32> = LinkedList::new();
+        m.extend([1, 2, 3, 4, 5, 6]);
+
+        // Remove at the ghost
+        let mut cursor = m.cursor_mut();
+        let removed = cursor.remove_current_as_list();
+        assert_eq!(removed, None);
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[1, 2, 3, 4, 5, 6]
+        );
+
+        // Remove first element
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        let removed = cursor.remove_current_as_list();
+        assert_ne!(removed, None);
+        assert_eq!(
+            removed.unwrap().iter().cloned().collect::<Vec<_>>(),
+            &[1]
+        );
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[2, 3, 4, 5, 6]
+        );
+
+        // Remove last element
+        let mut cursor = m.cursor_mut();
+        cursor.move_prev();
+        let removed = cursor.remove_current_as_list();
+        assert_ne!(removed, None);
+        assert_eq!(
+            removed.unwrap().iter().cloned().collect::<Vec<_>>(),
+            &[6]
+        );
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[2, 3, 4, 5]
+        );
+
+        // Remove in the middle
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.move_next();
+        let removed = cursor.remove_current_as_list();
+        assert_ne!(removed, None);
+        assert_eq!(
+            removed.unwrap().iter().cloned().collect::<Vec<_>>(),
+            &[3]
+        );
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[2, 4, 5]
+        );
+
+        check_links(&m);
     }
 
     fn check_links<T: PartialEq + Debug>(list: &LinkedList<T>) {
